@@ -11,6 +11,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/afex/hystrix-go/hystrix"
 )
 
 type Foo int
@@ -24,7 +26,7 @@ func (f Foo) Sum(args Args, reply *int) error {
 
 func (f Foo) Sleep(args Args, reply *int) error {
 	time.Sleep(time.Second * time.Duration(args.Num1))
-	*reply =  args.Num1 + args.Num2
+	*reply = args.Num1 + args.Num2
 	return nil
 }
 
@@ -43,22 +45,37 @@ func startServer(registryAddr string, wg *sync.WaitGroup) {
 	server.Accept(l)
 }
 
-
-
 func foo(xc *xclient.XClient, ctx context.Context, typ, serviceMethod string, args *Args) {
 	var reply int
 	var err error
-	switch typ {
-	case "call":
-		err = xc.Call(ctx, serviceMethod, args, &reply)
-	case "broadcast":
-		err = xc.Broadcast(ctx, serviceMethod, args, &reply)
-	}
-	if err != nil {
-		log.Printf("%s %s error: %v", typ, serviceMethod, err)
-	} else {
+
+	// 熔断处理: 客户端 1s内最大调用次数为5
+	hystrix.ConfigureCommand("client_call_geeregistry", hystrix.CommandConfig{
+		Timeout:                int(1 * time.Second),
+		MaxConcurrentRequests:  5,
+		SleepWindow:            10,
+		RequestVolumeThreshold: 1000,
+		ErrorPercentThreshold:  30,
+	})
+	_ = hystrix.Do("client_call_geeregistry", func() error {
+		// talk to other services
+		switch typ {
+		case "call":
+			err = xc.Call(ctx, serviceMethod, args, &reply)
+		case "broadcast":
+			err = xc.Broadcast(ctx, serviceMethod, args, &reply)
+		}
+		if err != nil {
+			log.Printf("%s %s error: %v", typ, serviceMethod, err)
+			return err
+		}
 		log.Printf("%s %s success: %d + %d = %d", typ, serviceMethod, args.Num1, args.Num2, reply)
-	}
+		return nil
+	}, func(err error) error {
+		log.Printf("%s %s error: %v", typ, serviceMethod, err)
+		return nil
+	})
+
 }
 
 func call(register string) {
@@ -67,7 +84,7 @@ func call(register string) {
 	defer func() { _ = xc.Close() }()
 	// send request & receive response
 	var wg sync.WaitGroup
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -82,7 +99,7 @@ func broadcast(registry string) {
 	xc := xclient.NewXClient(d, xclient.RandomSelect, nil)
 	defer func() { _ = xc.Close() }()
 	var wg sync.WaitGroup
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -104,7 +121,6 @@ func startRegistry(wg *sync.WaitGroup) {
 	_ = http.Serve(l, nil)
 }
 
-
 func main() {
 	// SetFlags 方法用于设置日志的输出前缀。这个前缀由一些标志组成，这些标志定义了在每条日志消息前面应该显示哪些元素
 	// 使用 log.SetFlags(0) 时，您实际上是清除了所有的标志，这意味着日志消息前面不会有任何前缀。
@@ -123,5 +139,6 @@ func main() {
 
 	time.Sleep(time.Second)
 	call(registryAddr)
+	time.Sleep(time.Second)
 	broadcast(registryAddr)
 }
