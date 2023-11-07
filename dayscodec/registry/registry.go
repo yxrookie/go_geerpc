@@ -40,6 +40,7 @@ func (r *GeeRegistry) putServer(addr string) {
 	s := r.servers[addr]
 	if s == nil {
 		r.servers[addr] = &ServerItem{Addr: addr, start: time.Now()}
+		
 	} else {
 		s.start = time.Now()
 	}
@@ -71,6 +72,7 @@ func (r *GeeRegistry) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 		r.putServer(addr)
+		
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
 	}

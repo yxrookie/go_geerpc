@@ -60,11 +60,18 @@ func (d *GeeRegistryDiscovery) Refresh() error {
 	return nil
 }
 
-func (d *GeeRegistryDiscovery) Get(mode SelectMode) (string, error) {
+/* func (d *GeeRegistryDiscovery) Get(mode SelectMode) (string, error) {
 	if err := d.Refresh(); err != nil {
 		return "", err
 	}
 	return d.MulitServersDiscovery.Get(mode)
+} */
+
+func (d *GeeRegistryDiscovery) GetConsisHash(mode SelectMode, serviceMethod string) (string, error) {
+	if err := d.Refresh(); err != nil {
+		return "", err
+	}
+	return d.MulitServersDiscovery.GetConsisHash(mode, serviceMethod)
 }
 
 func (d *GeeRegistryDiscovery) GetAll() ([]string, error) {

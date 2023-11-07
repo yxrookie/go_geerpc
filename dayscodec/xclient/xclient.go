@@ -60,7 +60,8 @@ func (xc *XClient) call(rpcAddr string, ctx context.Context, ServiceMethod strin
 }
 
 func (xc *XClient) Call(ctx context.Context, serviceMethod string, args, reply interface{}) error {
-	rpcAddr, err := xc.d.Get(xc.mode)
+	//rpcAddr, err := xc.d.Get(xc.mode)
+	rpcAddr, err := xc.d.GetConsisHash(xc.mode, serviceMethod)
 	if err != nil {
 		return err
 	}

@@ -2,7 +2,7 @@ package xclient
 
 import (
 	"context"
-	"errors"
+	
 	"math"
 	"math/rand"
 	"reflect"
@@ -13,15 +13,17 @@ import (
 type SelectMode int
 
 const (
-	RandomSelect     SelectMode = iota // select randomly
-	RoundRobinSelect                   // select using Robbin algorithm
+	//RandomSelect     SelectMode = iota // select randomly
+	//RoundRobinSelect                   // select using Robbin algorithm
+	ConsistentHash 	SelectMode = iota
 )
 
 type Discovery interface {
 	Refresh() error
 	Update(servers []string) error
-	Get(mode SelectMode) (string, error)
+	//Get(mode SelectMode) (string, error)
 	GetAll() ([]string, error)
+	GetConsisHash(mode SelectMode, serviceMethod string) (string, error)
 }
 
 // MulitServersDiscovery is a discovery for multi servers without a registry center
@@ -31,6 +33,8 @@ type MulitServersDiscovery struct {
 	mu sync.RWMutex // protect following
 	servers []string
 	index int  // record the selected position for robin algorithm
+
+	rb *HashBanlance
 }
 
 // NewMultiServerDiscovery creates a MultiServersDiscovery instance
@@ -40,6 +44,12 @@ func NewMultiServerDiscovery(servers []string) *MulitServersDiscovery {
 		r: rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	d.index = d.r.Intn(math.MaxInt32 - 1)
+    
+	// 初始化一个 hash 环
+	d.rb = NewHashBanlance(10, nil)
+	for _, server := range servers {
+		d.rb.Add(server)
+	}
 	return d
 }
 
@@ -57,7 +67,7 @@ func (d *MulitServersDiscovery) Update(servers []string) error {
 	d.servers = servers
 	return nil
 }
-
+/* 
 // Get a server according to mode
 func (d *MulitServersDiscovery) Get(mode SelectMode) (string, error) {
 	d.mu.Lock()
@@ -67,16 +77,23 @@ func (d *MulitServersDiscovery) Get(mode SelectMode) (string, error) {
 		return "", errors.New("rpc discovery: no available servers")
 	}
 	switch mode {
-	case RandomSelect:
+	 case RandomSelect:
 		return d.servers[d.r.Intn(n)], nil
 	case RoundRobinSelect:
 		s := d.servers[d.index%n]  //servers could be updated, so mode n to ensure safety 
 		d.index = (d.index + 1) % n
-		return s, nil
+		return s, nil 
 	default:
 		return "", errors.New("rpc discovery: not supported select mode")
 	}
 }
+ */
+func (d *MulitServersDiscovery) GetConsisHash(mode SelectMode, serviceMethod string) (string, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.rb.Get(serviceMethod)
+}
+
 
 // returns all servers in discovery
 func (d *MulitServersDiscovery) GetAll() ([]string, error) {
