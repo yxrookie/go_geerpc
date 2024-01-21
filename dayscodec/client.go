@@ -2,7 +2,6 @@ package go_geerpc
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -239,18 +238,9 @@ func (client *Client) Go(serviceMethod string, args, reply interface{}, done cha
 	return call
 }
 
-func (client *Client) Call(ctx context.Context, serviceMethod string, args,reply interface{}) error {
-	call := client.Go(serviceMethod, args, reply, make(chan *Call, 1))
-	select {
-	// ctx.Done() 通道发送一个信号，
-	// 表示 context 被取消或超时。如果发生这种情况，它将从客户端中移除这次调用并返回一个错误。
-	case <-ctx.Done():
-		client.removeCall(call.Seq)
-		return errors.New("rpc client: call failed: " + ctx.Err().Error())
-	// call.Done 通道发送一个信号，表示远程调用已完成。在这种情况下，它返回RPC调用的结果或错误。
-	case call := <-call.Done:
+func (client *Client) Call(serviceMethod string, args,reply interface{}) error {
+	call := <-client.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
 		return call.Error
-	}
 }
 
 type clientResult struct {
