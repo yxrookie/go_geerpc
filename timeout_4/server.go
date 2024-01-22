@@ -1,15 +1,17 @@
-package service_register_3
+package timeout_4
 
 import (
 	"encoding/json"
 	"errors"
-	"go_geerpc/service_register_3/codec"
+	"fmt"
+	"go_geerpc/timeout_4/codec"
 	"io"
 	"log"
 	"net"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 const MagicNumber = 0x3bef5c
@@ -17,12 +19,17 @@ const MagicNumber = 0x3bef5c
 type Option struct {
 	MagicNumber int        // MagicNumber marks this's a geerpc request
 	CodecType   codec.Type // client may choose different Codec to encode body
+	ConnectTimeout time.Duration
+	HandleTimeout time.Duration
 }
 
 var DefaultOption = &Option{
 	MagicNumber: MagicNumber,
-	CodecType:   codec.GobType,
+	CodecType: codec.GobType,
+	ConnectTimeout: time.Second * 10,
 }
+
+
 
 // Server represents an RPC Server.
 type Server struct{
@@ -70,12 +77,12 @@ func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 		log.Printf("rpc server: invalid codec type %s", opt.CodecType)
 		return
 	}
-	server.serveCodec(f(conn))
+	server.serveCodec(f(conn), &opt)
 }
 
 var invalidRequest = struct{}{}
 
-func (server *Server) serveCodec(cc codec.Codec) {
+func (server *Server) serveCodec(cc codec.Codec, opt *Option) {
 	sending := new(sync.Mutex)
 	wg := new(sync.WaitGroup)
 	for {
@@ -89,7 +96,7 @@ func (server *Server) serveCodec(cc codec.Codec) {
 			continue
 		}
 		wg.Add(1)
-		go server.handleRequest(cc, req, sending, wg)
+		go server.handleRequest(cc, req, sending, wg, opt.HandleTimeout)
 	}
 	wg.Wait()
 	_ = cc.Close()
@@ -117,6 +124,7 @@ func (server *Server) readRequestHeader(cc codec.Codec) (*codec.Header, error) {
 func (server *Server) readRequest(cc codec.Codec) (*request, error) {
 	h, err := server.readRequestHeader(cc)
 	if err != nil {
+		//fmt.Println("brekdown！！！")
 		return nil, err
 	}
 	req := &request{h: h}
@@ -132,6 +140,7 @@ func (server *Server) readRequest(cc codec.Codec) (*request, error) {
 	}
 	if err = cc.ReadBody(argvi); err != nil {
 		log.Println("rpc server: read argv err:", err)
+		return req, err
 	}
 	return req, nil
 }
@@ -144,17 +153,37 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 	}
 }
 
-func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup) {
-	// TODO, should call registered rpc methods to get the right replyv
-	// day 1, just print argv and send a hello message
+func (server *Server) handleRequest(cc codec.Codec, req *request, sending *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	defer wg.Done()
-	err := req.svc.call(req.mtype, req.argv, req.replyv)
-	if err != nil {
-		req.h.Error = err.Error()
-		server.sendResponse(cc, req.h, invalidRequest, sending)
+	called := make(chan struct{})
+	sent := make(chan struct{})
+
+	go func () {
+		err := req.svc.call(req.mtype, req.argv, req.replyv)
+		called <- struct{}{}
+		if err != nil {
+			req.h.Error = err.Error()
+			server.sendResponse(cc, req.h, invalidRequest, sending)
+			sent <- struct{}{}
+			return
+		}
+		server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
+		sent <- struct{}{}
+	}()
+	if timeout == 0 {
+		<-called
+		<-sent
 		return
 	}
-	server.sendResponse(cc, req.h, req.replyv.Interface(), sending)
+
+	select {
+	case <-time.After(timeout):
+		req.h.Error = fmt.Sprintf("rpc server: request handle timeout: expect within %s", timeout)
+		server.sendResponse(cc, req.h, invalidRequest, sending)
+	case <-called:
+		<-sent
+	}
+	
 }
 
 

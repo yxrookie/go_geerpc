@@ -1,7 +1,9 @@
 package main
 
 import (
-	"go_geerpc/service_register_3"
+	"context"
+	"go_geerpc/timeout_4"
+
 	"log"
 	"net"
 	"sync"
@@ -19,7 +21,7 @@ func(f Foo) Sum(args Args, reply *int) error {
 
 func startServer(addr chan string) {
 	var foo Foo
-	if err := service_register_3.Register(&foo); err != nil {
+	if err := timeout_4.Register(&foo); err != nil {
 		log.Fatal("register error:",err)
 	}
 	// pick a free port
@@ -29,14 +31,14 @@ func startServer(addr chan string) {
 	}
 	log.Println("start rpc server on", l.Addr())
 	addr <- l.Addr().String()
-	service_register_3.Accept(l)
+	timeout_4.Accept(l)
 }
 
 func main() {
     log.SetFlags(0)
 	addr := make(chan string)
 	go startServer(addr)
-	client, _ := service_register_3.Dial("tcp", <-addr)
+	client, _ := timeout_4.Dial("tcp", <-addr)
 	defer func() { _ = client.Close() }()
 
 	time.Sleep(time.Second)
@@ -48,7 +50,7 @@ func main() {
 			defer wg.Done()
 			args := &Args{Num1: i, Num2: i*i}
 			var reply int
-			if err := client.Call("Foo.Sum", args, &reply); err != nil {
+			if err := client.Call(context.Background(), "Foo.Sum", args, &reply); err != nil {
 				log.Fatal("call Foo.Sum error:", err)
 			}
 			log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)
