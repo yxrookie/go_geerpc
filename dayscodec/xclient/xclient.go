@@ -2,6 +2,7 @@ package xclient
 
 import (
 	"context"
+	
 	"go_geerpc/dayscodec"
 	"io"
 	"sync"
@@ -53,10 +54,11 @@ func (xc *XClient) dial(rpcAddr string) (*go_geerpc.Client, error) {
 
 func (xc *XClient) call(rpcAddr string, ctx context.Context, ServiceMethod string, args, reply interface{}) error {
 	client, err := xc.dial(rpcAddr)
+	//fmt.Println(client)
 	if err != nil {
 		return err
 	}
-	return client.Call(ctx, ServiceMethod, args, reply)
+	return client.Call(ServiceMethod, args, reply)
 }
 
 func (xc *XClient) Call(ctx context.Context, serviceMethod string, args, reply interface{}) error {

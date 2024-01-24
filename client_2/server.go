@@ -60,12 +60,12 @@ func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 		return
 	}
 	if opt.MagicNumber != MagicNumber {
-		log.Println("rpc server: invalid magic number %x", opt.MagicNumber)
+		log.Printf("rpc server: invalid magic number %x", opt.MagicNumber)
 		return
 	}
 	f := codec.NewCodecFuncMap[opt.CodecType]
 	if f == nil {
-		log.Println("rpc server: invalid codec type %s", opt.CodecType)
+		log.Printf("rpc server: invalid codec type %s", opt.CodecType)
 		return
 	}
 	server.serveCodec(f(conn))
