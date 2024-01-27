@@ -9,7 +9,8 @@ import (
 
 type GobCodec struct {
 	conn io.ReadWriteCloser
-	buf  *bufio.Writer
+	bufr *bufio.Reader
+	bufw  *bufio.Writer
 	dec  *gob.Decoder
 	enc  *gob.Encoder
 }
@@ -17,12 +18,14 @@ type GobCodec struct {
 var _ Codec = (*GobCodec)(nil)
 
 func NewGobCodec(conn io.ReadWriteCloser) Codec {
-	buf := bufio.NewWriter(conn)
+	bufr := bufio.NewReader(conn)
+	bufw := bufio.NewWriter(conn)
 	return &GobCodec {
 		conn: conn,
-		buf: buf,
-		dec: gob.NewDecoder(conn),
-		enc: gob.NewEncoder(buf),
+		bufr: bufr,
+		bufw: bufw,
+		dec: gob.NewDecoder(bufr),
+		enc: gob.NewEncoder(bufw),
 	}
 }
 
@@ -34,7 +37,7 @@ func (c *GobCodec) ReadHeader(h *Header) error {
 
 func (c *GobCodec) Write(h *Header, body interface {}) (err error) {
 	defer func() {
-		_ = c.buf.Flush()
+		_ = c.bufw.Flush()
 		if err != nil {
 			_ = c.Close()
 		}

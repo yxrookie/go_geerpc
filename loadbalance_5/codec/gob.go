@@ -9,6 +9,7 @@ import (
 
 type GobCodec struct {
 	conn io.ReadWriteCloser
+	bufr *bufio.Reader
 	buf  *bufio.Writer
 	dec  *gob.Decoder
 	enc  *gob.Encoder
@@ -17,11 +18,13 @@ type GobCodec struct {
 var _ Codec = (*GobCodec)(nil)
 
 func NewGobCodec(conn io.ReadWriteCloser) Codec {
+	bufr := bufio.NewReader(conn)
 	buf := bufio.NewWriter(conn)
 	return &GobCodec {
 		conn: conn,
+		bufr: bufr,
 		buf: buf,
-		dec: gob.NewDecoder(conn),
+		dec: gob.NewDecoder(bufr),
 		enc: gob.NewEncoder(buf),
 	}
 }
