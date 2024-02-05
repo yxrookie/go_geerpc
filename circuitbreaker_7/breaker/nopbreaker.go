@@ -1,5 +1,6 @@
 package breaker
 
+// 空断路器的实现，使不需要断路保护的情况下仍然可以使用 Breaker 对象作为占位符
 const nopBreakerName = "nopBreaker"
 
 type nopBreaker struct{}

@@ -117,7 +117,6 @@ func (client *Client) receive() {
 }
 
 func NewClient(conn net.Conn, opt *Option) (*Client, error) {
-
 	f := codec.NewCodecFuncMap[opt.CodecType]
 	if f == nil {
 		err := fmt.Errorf("invalid codec type %s", opt.CodecType)
@@ -128,6 +127,12 @@ func NewClient(conn net.Conn, opt *Option) (*Client, error) {
 	if err := json.NewEncoder(conn).Encode(opt); err != nil {
 		log.Println("rpc client: options error: ", err)
 		_ = conn.Close()
+		return nil, err
+	}
+	if err := json.NewDecoder(conn).Decode(&opt.reply); err != nil {
+		if opt.reply != "Request confirmation" {
+			log.Println("rpc client: Request confirmatio error:", err)
+		}
 		return nil, err
 	}
 	return newClientCodec(f(conn), opt), nil

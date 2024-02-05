@@ -19,6 +19,8 @@ const MagicNumber = 0x3bef5c
 type Option struct {
 	MagicNumber int        // MagicNumber marks this's a geerpc request
 	CodecType   codec.Type // client may choose different Codec to encode body
+	 // reply 字段确保服务端接受信息后，又给客户端发送确认信息。
+	 reply string
 	ConnectTimeout time.Duration
 	HandleTimeout time.Duration
 }
@@ -61,6 +63,7 @@ func (server *Server) Accept(lis net.Listener) {
 // for each incoming connection.
 func Accept(lis net.Listener) { DefaultServer.Accept(lis) }
 
+
 func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 	defer func() { _ = conn.Close() }()
 	var opt Option
@@ -77,8 +80,14 @@ func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 		log.Printf("rpc server: invalid codec type %s", opt.CodecType)
 		return
 	}
+	opt.reply = "Request confirmation"
+	if err := json.NewEncoder(conn).Encode(opt.reply); err != nil {
+		log.Println("rpc server: option error:", err)
+		return
+	}
 	server.serveCodec(f(conn), &opt)
 }
+
 
 var invalidRequest = struct{}{}
 

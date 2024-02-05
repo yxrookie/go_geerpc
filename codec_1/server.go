@@ -68,6 +68,10 @@ func (server *Server) ServeConn(conn io.ReadWriteCloser) {
 		log.Printf("rpc server: invalid codec type %s", opt.CodecType)
 		return
 	}
+	if err := json.NewEncoder(conn).Encode(opt); err != nil {
+		log.Println("rpc server: option error:", err)
+		return
+	}
 	server.serveCodec(f(conn))
 }
 

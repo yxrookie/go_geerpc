@@ -128,6 +128,11 @@ func NewClient(conn net.Conn, opt *Option) (*Client, error) {
 		_ = conn.Close()
 		return nil, err
 	}
+	// 
+	if err := json.NewDecoder(conn).Decode(opt); err != nil {
+		log.Println("rpc client: option err:", err)
+		return nil, err
+	}
 	return newClientCodec(f(conn), opt), nil
 }
 

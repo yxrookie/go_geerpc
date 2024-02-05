@@ -10,6 +10,7 @@ import (
 type GobCodec struct {
 	conn io.ReadWriteCloser
 	buf  *bufio.Writer
+	// 编码 Encoder 解码 Decoder
 	dec  *gob.Decoder
 	enc  *gob.Encoder
 }

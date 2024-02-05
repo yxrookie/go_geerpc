@@ -122,6 +122,6 @@ func main() {
 	wg.Wait()
 
 	time.Sleep(time.Second)
-	//call(registryAddr)
+	call(registryAddr)
 	broadcast(registryAddr)
 }
