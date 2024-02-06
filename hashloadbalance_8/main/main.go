@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"net/http"
-
-	circuitbreaker_7 "go_geerpc/circuitbreaker_7"
-	"go_geerpc/circuitbreaker_7/registry"
-	"go_geerpc/circuitbreaker_7/xclient"
-	"go_geerpc/circuitbreaker_7/breaker"
+	
+	hashloadbalance_8 "go_geerpc/hashloadbalance_8"
+	"go_geerpc/hashloadbalance_8/breaker"
+	"go_geerpc/hashloadbalance_8/registry"
+	"go_geerpc/hashloadbalance_8/xclient"
 	"log"
 	"net"
 	"sync"
@@ -39,7 +39,7 @@ func startRegistry(wg *sync.WaitGroup) {
 func startServer(registryAddr string, wg *sync.WaitGroup) {
 	var foo Foo
 	l, _ := net.Listen("tcp", ":0")
-	server := circuitbreaker_7.NewServer()
+	server := hashloadbalance_8.NewServer()
 	_ = server.Register(&foo)
 	registry.Heartbeat(registryAddr, "tcp@"+l.Addr().String(), 0)
 	wg.Done()
@@ -68,13 +68,30 @@ func foo(xc *xclient.XClient, ctx context.Context, typ, serviceMethod string, ar
 
 func call(registry string) {
 	d := xclient.NewGeeRegistryDiscovery(registry, 0)
-	xc := xclient.NewXClient(d, xclient.RandomSelect, nil)
+	//xc := xclient.NewXClient(d, xclient.RandomSelect, nil)
+	loadMode :=  xclient.HashConsistentSelect
+	xc := xclient.NewXClient(d, loadMode, nil)
+
+	if loadMode == xclient.HashConsistentSelect {
+		// 初始化一个 hash 环
+	d.Rb = xclient.NewHashBanlance(100, nil)
+	servers, err := xc.D.GetAll()
+	if err != nil {
+		panic("hash 环添加节点失败！！！")
+	}
+	for _, server := range servers {
+		d.Rb.Add(server)
+	}
+	}
+
 	defer func() { _ = xc.Close() }()
 	// send request & receive response
 	var wg sync.WaitGroup
 
 	foobraker := breaker.FooError{}
-	for i := 0; i < 10; i++ {
+
+
+	for i := 0; i < 20; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -85,20 +102,36 @@ func call(registry string) {
 	wg.Wait()
 }
 
+
 func broadcast(registry string) {
 	d := xclient.NewGeeRegistryDiscovery(registry, 0)
-	xc := xclient.NewXClient(d, xclient.RandomSelect, nil)
+	loadMode :=  xclient.HashConsistentSelect
+	//xc := xclient.NewXClient(d, xclient.RandomSelect, nil)
+	xc := xclient.NewXClient(d, loadMode, nil)
+
+	if loadMode == xclient.HashConsistentSelect {
+		// 初始化一个 hash 环
+	d.Rb = xclient.NewHashBanlance(100, nil)
+	servers, err := xc.D.GetAll()
+	if err != nil {
+		panic("hash 环添加节点失败！！！")
+	}
+	for _, server := range servers {
+		d.Rb.Add(server)
+	}
+	}
+
 	defer func() { _ = xc.Close() }()
 	var wg sync.WaitGroup
 
 	foobraker := breaker.FooError{}
-	for i := 0; i < 4; i++ {
+	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			foo(xc, context.Background(), "broadcast", "Foo.Sum", &Args{Num1: i, Num2: i * i})
 			// expect 2 - 5 timeout
-			ctx, _ := context.WithTimeout(context.Background(), time.Second*2)
+			ctx, _ := context.WithTimeout(context.Background(), time.Second*20)
 			err := foo(xc, ctx, "broadcast", "Foo.Sleep", &Args{Num1: i, Num2: i * i})
 			foobraker.FooDoWithFallBack(err)
 		}(i)

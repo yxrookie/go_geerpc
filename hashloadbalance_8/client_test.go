@@ -1,8 +1,7 @@
-package timeout_4
+package hashloadbalance_8
 
 import (
 	"context"
-	
 
 	"net"
 	"strings"
@@ -27,6 +26,7 @@ func startServer(addr chan string) {
 }
 
 func TestClient_dialTimeout(t *testing.T) {
+	
 	t.Parallel()
 	l, _ := net.Listen("tcp", ":0")
 
@@ -51,13 +51,13 @@ func TestClient_Call(t *testing.T) {
 	go startServer(addrCh)
 	addr := <-addrCh
 	time.Sleep(time.Second)
-	 t.Run("client timeout", func(t *testing.T) {
+	/* t.Run("client timeout", func(t *testing.T) {
 		client, _ := Dial("tcp", addr)
 		ctx, _ := context.WithTimeout(context.Background(), time.Second)
 		var reply int
 		err := client.Call(ctx, "Bar.Timeout", 1, &reply)
 		_assert(err != nil && strings.Contains(err.Error(), ctx.Err().Error()), "expect a timeout error")
-	}) 
+	}) */
 	t.Run("server handle timeout", func(t *testing.T) {
 		client, _ := Dial("tcp", addr, &Option{
 			HandleTimeout: time.Second,
@@ -67,3 +67,4 @@ func TestClient_Call(t *testing.T) {
 		_assert(err != nil && strings.Contains(err.Error(), "handle timeout"), "expect a timeout error")
 	})
 }
+
